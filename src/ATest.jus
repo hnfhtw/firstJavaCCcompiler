@@ -1,0 +1,23 @@
+
+program ATest { enterScope
+	int global;     insertSymbol
+
+	int doIt(byval int i) { insertSymbol 
+	         ->EnterScope
+		return i;
+	} -> LeaveScope
+	
+	void main() { insertSymbol
+	 ->EnterScope
+		int a; insertSymbol(a)
+   		a = doIt(10);
+   		global = a;
+   	} ->LeaveScope
+} ->LeaveScope
+
+worldScope
+  progSymbol
+    globalVar[global]->funcSymbol[doIt]->funcSymbol[main]
+                          |
+                          -> ParamSy[i]->ParamSy[j]
+   

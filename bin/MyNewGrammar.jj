@@ -1,0 +1,389 @@
+/**
+ * JavaCC template file created by SF JavaCC plugin 1.5.28+ wizard for JavaCC 1.5.0+
+ */
+options{  static = true;
+}	PARSER_BEGIN(TestParser)
+import java.io.*;
+
+public class TestParser{
+  public final static Namelist namelist = new Namelist();				       // namelist to store var + func names
+  public final static SymbolTable symboltable = new SymbolTable();		 // symbol table to store symbol and scope information
+  public final static CodeGen codegen = new CodeGen("test.txt");
+    public static void main(String args []) throws ParseException, FileNotFoundException  {
+    String filename = "ATest.jus";
+    File file = new File(filename);
+    String path = file.getAbsolutePath();    TestParser parser = new TestParser(new FileInputStream(path));
+	//codegen.emitTest("Start Parsing");    try    {      switch (parser.parse())      {	      case 0 :	      	System.out.println("OK.");	      	break;	      case 1 : 	      	System.out.println("Goodbye.");	      	break;	      default : 	      	break;	    }	  }	  catch (Exception e)	  {	    System.out.println("NOK.");	    System.out.println(e.getMessage());	    parser.ReInit(System.in);	  }	  catch (Error e)	  {	    System.out.println("Oops.");	    System.out.println(e.getMessage());	  }  }}PARSER_END(TestParser)SKIP :{  " "| "\r"| "\t"| "\n"}TOKEN : /* OPERATORS  - > Terminalsymbole*/{  < PROGRAM : "program" >
+| < CURVEDBRACKETOPEN : "{" >
+| < CURVEDBRACKETCLOSE : "}" >
+| < SEMICOLON : ";" >
+| < ASIGN : "=" >
+| < VOID : "void" >
+| < INT : "int" >
+| < BOOLEAN : "boolean" >
+| < BRACEOPEN : "(" >
+| < BRACECLOSE : ")" >
+| < BYREF : "byref" >
+| < BYVAL : "byval" >
+| < COMMA : "," >
+| < IF : "if" >
+| < ELSE : "else" >
+| < WHILE : "while" >
+| < RETURN : "return" >
+| < OR : "||" >
+| < AND : "&&" >
+| < EQUALS : "==" >
+| < NOTEQUALS : "!=" >
+| < LOWER : "<" >
+| < LOWEROREQUAL : "<=" >
+| < GREATER : ">" >
+| < GREATEROREQUAL : ">=" >
+| < PLUS : "+" >| < MINUS : "-" >| < MULTIPLY : "*" >| < DIVIDE : "/" >
+| < NOT : "!" >}TOKEN /* Terminalklassen */:{
+  < #LETTER: ["A"-"Z","a"-"z"] >
+| < #DIGIT: ["0"-"9"] >
+| < IDENT: < LETTER > (< LETTER >| < DIGIT >)* >
+| < NUMBER: (< DIGIT >)+ >}int parse() :{}{  CompilationUnit()  {    return 0;  }}
+
+void CompilationUnit() :
+{
+    Token token;
+    Type type;
+    Symbol s;
+}
+{
+  < PROGRAM > token = <IDENT > 
+  {
+    namelist.add(token.image);
+    s = new Symbol();
+    s.name = token.image;
+    s.kind = Symbol.Kind.progKind;
+    s.level = symboltable.curLevel;
+    symboltable.insert(s);
+    //codegen.emitTest("Symbol = " + s.name + ", Level = " + s.level + ", Scope = " + symboltable.curScope);
+  }
+	{
+	  symboltable.enterScope();
+	}
+  < CURVEDBRACKETOPEN > Definition() < CURVEDBRACKETCLOSE >
+
+  {
+    symboltable.leaveScope();
+  }
+}
+
+void Definition() :
+{ }
+{
+  ( LOOKAHEAD(3) VarDef() | FuncDef() )*     // LOOKAHEAD(3) necessary - > otherwise error
+}
+
+void VarDef() :
+{
+	Token token;       // used to get and store variable name
+	Type type;         // used to get and store type of variable
+	Symbol s;          // store information (name, type, ...) of variable as one symbol
+}
+{  type = Type() token = < IDENT >
+{
+    namelist.add(token.image);
+    s = new Symbol();
+    s.type = type;
+    s.name = token.image;
+    s.kind = Symbol.Kind.varKind;
+    s.level = symboltable.curLevel;
+    symboltable.insert(s);
+    //codegen.emitTest("Symbol = " + s.name + ", Level = " + s.level + ", Scope = " + symboltable.curScope);
+}
+
+  [Init()
+    {
+      if(s.level == 1) {     // global
+        System.out.println("PUTSTATIC " + s.addr + " (" + s.name + ", ADDR " + s.addr + ")");
+        codegen.emitTest("PUTSTATIC " + s.addr);
+      }
+      else {
+        System.out.println("ISTORE " + s.addr + " (" + s.name + ", ADDR " + s.addr + ")");
+        //System.out.println("ISTORE " + token.image);
+        codegen.emitTest("ISTORE " + s.addr);
+      }
+    }
+    ] < SEMICOLON >
+}
+
+void Init() :
+{
+  Token token;
+  Symbol sym;
+  }
+{
+  < ASIGN > token = < NUMBER >
+  {
+    sym = new Symbol();
+    sym.type = Type.INT;
+    sym.name = token.image;
+    sym.kind = Symbol.Kind.constKind;
+    sym.level = symboltable.curLevel;
+    if(symboltable.lookup(sym.name) == null) {
+      symboltable.insert(sym);
+      System.out.println("LDCW " + sym.addr + " (" + token.image + ", ADDR " + sym.addr + ")");
+      codegen.emitTest("LDCW " + sym.addr);
+    }
+  }
+}
+
+Type Type() :
+{ }
+{
+  < VOID >
+	{
+		return Type.VOID;
+	}
+  | < INT >
+	{
+		return Type.INT;
+	}
+  | < BOOLEAN >
+  	{
+		return Type.BOOL;
+	}
+}
+
+void FuncDef() :
+{ }
+{
+  FuncHead() Block()
+  {
+    symboltable.leaveScope();
+  }}
+
+void FuncHead() :
+{
+	Token token;
+	Type type;
+	Symbol s;
+}
+{  type = Type() token = < IDENT > < BRACEOPEN >
+	{
+		namelist.add(token.image);
+		s = new Symbol();
+		s.type = type;
+		s.name = token.image;
+		s.kind = Symbol.Kind.funcKind;
+		s.level = symboltable.curLevel;
+		symboltable.insert(s);
+		//codegen.emitTest("Symbol = " + s.name + ", Level = " + s.level + ", Scope = " + symboltable.curScope);
+	  
+	  symboltable.enterScope();
+	}
+  [FormParList(s)] < BRACECLOSE >
+}
+
+void FormParList(Symbol s) :
+{
+    Token token;
+    Type type;
+    Symbol sym;
+}
+{  [< BYREF > | < BYVAL >] type = Type() token = < IDENT >
+	{
+	        namelist.add(token.image);
+	        sym = new Symbol();
+	        sym.type = type;
+	        sym.name = token.image;
+	        sym.kind = Symbol.Kind.parKind;
+	        sym.level = symboltable.curLevel;
+	        if(s.symbols == null) {
+                s.symbols = sym;
+                //codegen.emitTest("Symbol = " + sym.name + ", Level = " + sym.level + ", Scope = " + symboltable.curScope);
+	        }
+	        else { 
+		        Symbol temp = s.symbols;
+	            while(temp.next != null) {
+	                temp = temp.next;
+	            }
+		        temp.next = sym;
+		        //codegen.emitTest("Symbol = " + sym.name + ", Level = " + sym.level + ", Scope = " + symboltable.curScope);
+		      }
+	}
+
+
+  (< COMMA > [< BYREF >| < BYVAL >] type = Type() token = < IDENT >
+    {
+        Symbol temp1 = s.symbols;
+        while(temp1.next != null) {
+            temp1 = temp1.next;
+        }
+        temp1.next = sym;
+        //codegen.emitTest("Symbol = " + sym.name + ", Level = " + sym.level + ", Scope = " + symboltable.curScope);
+    }
+  )*
+}
+
+void Block() :
+{ }
+{  < CURVEDBRACKETOPEN > (VarDef() | Stat())* < CURVEDBRACKETCLOSE >
+}
+
+void Stat() :
+{ }
+{
+  LOOKAHEAD(3) AssignStat() | CallStat() | IfStat() | WhileStat() | ReturnStat() |      // LOOKAHEAD(3) necessary - > otherwise error
+	{
+	  symboltable.enterScope();
+	}
+  Block()
+	{
+	  symboltable.leaveScope();
+	}
+  | < SEMICOLON >
+}
+void AssignStat() :
+{
+	Token token;
+	
+}
+{
+  token = < IDENT > < ASIGN > Expr() < SEMICOLON >
+  {
+    Symbol sym = symboltable.lookup(token.image);
+    if(sym != null) {
+         if(sym.level == 1) {   // global
+            System.out.println("PUTSTATIC " + sym.addr + " (" + token.image + ", ADDR " + sym.addr + ")");
+            codegen.emitTest("PUTSTATIC " + sym.addr);
+         }
+         else {
+            System.out.println("ISTORE " + sym.addr + " (" + token.image + ", ADDR " + sym.addr + ")");
+            codegen.emitTest("ISTORE " + sym.addr);
+         }
+         
+    }
+    // System.out.println("ISTORE " + token.image);
+  }
+}
+
+void CallStat() :
+{ }
+{
+  Call() < SEMICOLON >
+}
+
+void Call() :
+{ }
+{
+  < IDENT > < BRACEOPEN > [ActParList()] < BRACECLOSE > 
+}
+
+void ActParList() :
+{ }
+{
+  Expr() (< SEMICOLON > Expr())*
+}
+
+void IfStat() :
+{ }
+{ 
+  < IF > < BRACEOPEN > Expr() < BRACECLOSE > Stat() [LOOKAHEAD(2) < ELSE > Stat()]
+}
+
+void WhileStat() :
+{ }
+{
+  < WHILE > < BRACEOPEN > Expr() < BRACECLOSE > Stat()
+}
+
+void ReturnStat() :
+{ }
+{
+  < RETURN > [Expr()] < SEMICOLON >
+}
+
+void Expr() :
+{ }
+{
+  OrExpr()
+}
+
+void OrExpr() :
+{ }
+{
+  AndExpr() (< OR > AndExpr())*
+}
+
+void AndExpr() :
+{ }
+{
+  RelExpr() (< AND > RelExpr())*
+}
+
+void RelExpr() :
+{ }
+{
+  SimpleExpr() [ (< EQUALS > | < NOTEQUALS > | < LOWER > | < LOWEROREQUAL > | < GREATER > | < GREATEROREQUAL >) SimpleExpr()]
+}
+
+void SimpleExpr() :
+{ }
+{
+  [< PLUS > | < MINUS >] Term() ((< PLUS > | < MINUS >) Term()
+  {
+    System.out.println("IADD");
+    codegen.emitTest("IADD");
+  }
+  )*
+}
+
+void Term() :
+{ }
+{
+  NotFact() ((< MULTIPLY > | < DIVIDE >) NotFact())*
+}
+
+void NotFact() :
+{ }
+{
+  [< NOT >] Fact()
+}
+  
+void Fact() :
+{
+  Token token;
+   Type type;
+   Symbol sym;
+   }
+{
+  token = < NUMBER >
+  {
+    sym = new Symbol();
+    sym.type = Type.INT;
+    sym.name = token.image;
+    sym.kind = Symbol.Kind.constKind;
+    sym.level = symboltable.curLevel;
+    if(symboltable.lookup(sym.name) == null) {
+      symboltable.insert(sym);
+      System.out.println("LDCW " + sym.addr + " (" + token.image + ", ADDR " + sym.addr + ")");
+      codegen.emitTest("LDCW " + sym.addr);
+    }
+  }
+  | token = < IDENT >
+  {
+    Symbol s = symboltable.lookup(token.image);
+    if(s != null) {
+      if(s.level == 1) {        // global
+        System.out.println("GETSTATIC " + s.addr + " (" + s.name + ", ADDR " + s.addr + ")");
+        codegen.emitTest("GETSTATIC " + s.addr);
+      }
+      else {
+        System.out.println("ILOAD " + s.addr + " (" + s.name + ", ADDR " + s.addr + ")");
+        codegen.emitTest("ILOAD " + s.addr);
+      }
+      
+    }
+  }
+  [< BRACEOPEN > [ActParList()] < BRACECLOSE >] | < BRACEOPEN > Expr() < BRACECLOSE >
+  
+}
+
+
+/*void sum() :{}{  term()  (    (      < PLUS >    | < MINUS >    )    term()  )*}void term() :{}{  unary()  (    (      < MULTIPLY >    | < DIVIDE >    )    unary()  )*}void unary() :{}{  < MINUS > element()| element()}void element() :{}{  < CONSTANT >| "(" sum() ")"}
+*/
